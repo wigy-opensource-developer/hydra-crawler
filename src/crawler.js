@@ -1,8 +1,8 @@
 const { map } = require('lodash')
-const Peers = require('./peer')
+const Connections = require('./peer')
 
-const VISITED = 1
 const NOT_VISITED = 0
+const VISITED = 1
 let NETWORK_P2P_PORT = null
 
 class Crawler {
@@ -11,9 +11,6 @@ class Crawler {
    * @method constructor
    */
   constructor (timeout = 2500, disconnect = true, sampleSize = 10) {
-    this.headers = {}
-    this.timeout = timeout
-    this.socket = undefined
     this.disconnect = disconnect
     this.request = {
       data: {},
@@ -22,8 +19,7 @@ class Crawler {
       }
     }
     this.sampleSize = sampleSize
-
-    this.peers = new Peers(this.timeout)
+    this.connections = new Connections(timeout)
   }
 
   /**
@@ -40,8 +36,8 @@ class Crawler {
 
     NETWORK_P2P_PORT = peer.port
 
-    if (!this.peers.get(peer.ip)) {
-      this.peers.add(peer.ip, NETWORK_P2P_PORT)
+    if (!this.connections.get(peer.ip)) {
+      this.connections.add(peer.ip, NETWORK_P2P_PORT)
     }
 
     try {
@@ -51,7 +47,7 @@ class Crawler {
       await this.scanNetwork()
       if (this.disconnect) {
         console.log('... disconnecting from all peers')
-        this.peers.disconnectAll()
+        this.connections.disconnectAll()
       }
     } catch (err) {
       console.error(err)
@@ -60,23 +56,23 @@ class Crawler {
     return this
   }
 
-  async discoverPeers (peer) {
+  async discoverPeers (currentNode) {
     return new Promise((resolve, reject) => {
-      const connection = this.peers.get(peer.ip)
+      const connection = this.connections.get(currentNode.ip)
       if (!connection) {
-        reject(new Error(`No connection exists for ${peer.ip}:${peer.port}`))
+        reject(new Error(`No connection exists for ${currentNode.ip}:${currentNode.port}`))
       }
       connection.emit(
         'p2p.peer.getPeers',
         this.request,
         (err, response) => {
           if (err) {
-            console.error(`Error when calling p2p.peer.getPeers on ${peer.ip}: ${err}`)
+            console.error(`Error when calling p2p.peer.getPeers on ${currentNode.ip}: ${err}`)
             return resolve()
           }
 
-          if (peer.ip in this.samplePeers) {
-            this.samplePeers[peer.ip] = VISITED
+          if (currentNode.ip in this.samplePeers) {
+            this.samplePeers[currentNode.ip] = VISITED
           }
 
           response.data.map((peer) => {
@@ -84,22 +80,23 @@ class Crawler {
               this.nodes[peer.ip] = peer
             }
 
-            if (!this.peers.get(peer.ip)) {
-              this.peers.add(peer.ip, NETWORK_P2P_PORT)
+            if (!this.connections.get(peer.ip)) {
+              this.connections.add(peer.ip, NETWORK_P2P_PORT)
             }
           })
 
-          if (this.samplePeers[peer.ip] === VISITED) {
+          if (this.samplePeers[currentNode.ip] === VISITED) {
             return resolve()
           }
 
           // note: this is not very efficient on large arrays
           const samplePeers = response.data
+            .filter(p => this.samplePeers[p.ip] !== VISITED)
             .map(x => ({ x, r: Math.random() }))
             .sort((a, b) => a.r - b.r)
             .map(a => a.x)
             .slice(0, this.sampleSize)
-            .filter(a => a.ip !== peer.ip)
+            .filter(a => a.ip !== currentNode.ip)
             .map((peer) => {
               this.samplePeers[peer.ip] = NOT_VISITED
               return this.discoverPeers(peer)
@@ -113,7 +110,7 @@ class Crawler {
   scanNetwork () {
     const promises = map(this.nodes, (peer) => {
       return new Promise((resolve, reject) => {
-        const connection = this.peers.get(peer.ip)
+        const connection = this.connections.get(peer.ip)
         if (!connection) {
           return resolve()
         }
@@ -129,8 +126,8 @@ class Crawler {
               height: response.data.state.header.height,
               id: response.data.state.header.id
             })
-            this.nodes[peer.ip].height = response.data.state.header.height
-            this.nodes[peer.ip].id = response.data.state.header.id
+            peer.height = response.data.state.header.height
+            peer.id = response.data.state.header.id
             return resolve()
           }
         )

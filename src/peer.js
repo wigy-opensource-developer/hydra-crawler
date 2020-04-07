@@ -38,10 +38,6 @@ class Peers {
     return this.connections.get(ip)
   }
 
-  map () {
-    return this.connections
-  }
-
   disconnectAll () {
     for (const [ip, connection] of this.connections.entries()) {
       connection.destroy()

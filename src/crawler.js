@@ -31,7 +31,7 @@ class Crawler {
   async run (peer) {
     this.nodes = {}
     this.heights = []
-    this.samplePeers = {}
+    this.traversalState = {}
     this.startTime = new Date()
 
     NETWORK_P2P_PORT = peer.port
@@ -71,8 +71,8 @@ class Crawler {
             return resolve()
           }
 
-          if (currentNode.ip in this.samplePeers) {
-            this.samplePeers[currentNode.ip] = VISITED
+          if (currentNode.ip in this.traversalState) {
+            this.traversalState[currentNode.ip] = VISITED
           }
 
           response.data.map((peer) => {
@@ -85,23 +85,24 @@ class Crawler {
             }
           })
 
-          if (this.samplePeers[currentNode.ip] === VISITED) {
+          if (this.traversalState[currentNode.ip] === VISITED) {
             return resolve()
           }
 
           // note: this is not very efficient on large arrays
           const samplePeers = response.data
-            .filter(p => this.samplePeers[p.ip] !== VISITED)
+            .filter(p => this.traversalState[p.ip] !== VISITED)
+            .filter(a => a.ip !== currentNode.ip)
             .map(x => ({ x, r: Math.random() }))
             .sort((a, b) => a.r - b.r)
             .map(a => a.x)
             .slice(0, this.sampleSize)
-            .filter(a => a.ip !== currentNode.ip)
+          const discoverPeers = samplePeers
             .map((peer) => {
-              this.samplePeers[peer.ip] = NOT_VISITED
+              this.traversalState[peer.ip] = NOT_VISITED
               return this.discoverPeers(peer)
             })
-          Promise.all(samplePeers).then(resolve)
+          Promise.all(discoverPeers).then(resolve)
         }
       )
     })
@@ -122,12 +123,18 @@ class Crawler {
               console.error(`Error when calling p2p.peer.getStatus on ${peer.ip}: ${err}`)
               return resolve()
             }
-            this.heights.push({
+            const block = {
               height: response.data.state.header.height,
               id: response.data.state.header.id
-            })
-            peer.height = response.data.state.header.height
-            peer.id = response.data.state.header.id
+            }
+            this.heights.push(block)
+            if (peer.height !== block.height) {
+              console.log(peer.ip + ' heights: ' + peer.height + '<>' + block.height)
+            }
+            Object.assign(peer, response.data.config);
+            Object.assign(peer, block);
+            // peer.height = block.height
+            // peer.id = block.id
             return resolve()
           }
         )

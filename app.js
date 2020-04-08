@@ -11,29 +11,31 @@ const report = (crawler) => {
 
   const nodes = Object.values(crawler.nodes)
 
-  for (const item of nodes) {
-    if (item.height === undefined || item.id === undefined) {
+  for (const node of nodes) {
+    if (node.height === undefined || node.id === undefined) {
       continue
     }
 
-    if (blockStats[item.height]) {
-      blockStats[item.height].count += 1
-      blockStats[item.height].ids[item.id] += 1
+    console.log(JSON.stringify(node, undefined, 2))
+
+    if (blockStats[node.height]) {
+      blockStats[node.height].count += 1
+      blockStats[node.height].ids[node.id] += 1
     } else {
-      blockStats[item.height] = {}
-      blockStats[item.height].count = 1
-      blockStats[item.height].height = item.height
+      blockStats[node.height] = {}
+      blockStats[node.height].count = 1
+      blockStats[node.height].height = node.height
       // todo block ids
-      blockStats[item.height].ids = {}
-      blockStats[item.height].ids[item.id] = 1
+      blockStats[node.height].ids = {}
+      blockStats[node.height].ids[node.id] = 1
     }
 
-    if (versionStats[item.version]) {
-      versionStats[item.version].count += 1
+    if (versionStats[node.version]) {
+      versionStats[node.version].count += 1
     } else {
-      versionStats[item.version] = {
+      versionStats[node.version] = {
         count: 1,
-        version: item.version
+        version: node.version
       }
     }
   }

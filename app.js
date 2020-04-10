@@ -1,9 +1,9 @@
-const Crawler = require('./src/crawler')
-const { URL } = require('url')
-const { orderBy } = require('lodash/collection')
+const { orderBy } = require('lodash')
+const fs = require('fs')
+const path = require('path')
+const moment = require('moment')
 
-const crawler = new Crawler()
-const args = process.argv.slice(2)
+const Crawler = require('./src/crawler')
 
 const report = (crawler) => {
   const blockStats = {}
@@ -15,8 +15,6 @@ const report = (crawler) => {
     if (node.height === undefined || node.id === undefined) {
       continue
     }
-
-    console.log(JSON.stringify(node, undefined, 2))
 
     if (blockStats[node.height]) {
       blockStats[node.height].count += 1
@@ -77,14 +75,33 @@ const report = (crawler) => {
   console.log('------------------------------------------')
   console.log(`Finished scanning in ${new Date() - crawler.startTime}ms`)
 
-  process.exit(0)
+  return crawler
 }
 
-const node = { ip: undefined, port: undefined }
-if (args.length === 1) {
-  const url = new URL(args[0])
-  node.ip = url.hostname
-  node.port = url.port
+const main = async () => {
+  try {
+    const crawler = new Crawler()
+    const args = process.argv.slice(2)
+    const outputFilename = `${path.basename(args[0], '.json')}-${moment().format('YYYYMMDD-HHmmss')}.json`
+
+    const inputStr = fs.readFileSync(args[0], { encoding: 'utf-8' })
+    let input = JSON.parse(inputStr)
+    if ('list' in input) {
+      input = input.list
+    }
+
+    for (const node of input) {
+      crawler.add(node)
+    }
+
+    await crawler.run()
+    await report(crawler)
+
+    const outputStr = JSON.stringify(Object.values(crawler.nodes), undefined, 2)
+    fs.writeFileSync(outputFilename, outputStr, { encoding: 'utf-8' })
+  } catch (err) {
+    console.error(err)
+  }
 }
 
-crawler.run(node).then(report).catch(err => console.error(err))
+main().then(() => {})

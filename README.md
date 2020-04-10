@@ -10,10 +10,25 @@ you sponsor them for their hard work.
 
 ## Usage
 
-`node . http://<ip>:<port>`
+- [Hydra mainnet](http://hydra.iop.global/)
+  
+  `node . hyd-mainnet.json`
 
-For port use the p2p port, which is 4701 for [Hydra mainnet](http://hydra.iop.global/) or
-4702 for [Hydra devnet](http://dev.hydra.iop.global/).
+- [Hydra devnet](http://dev.hydra.iop.global/)
+  
+  `node . hyd-devnet.json`
+
+- [ARK mainnet](https://explorer.ark.io/)
+  
+  `node . ark-mainnet.json`
+
+- [ARK devnet](https://dev.explorer.ark.io/)
+  
+  `node . ark-devnet.json`
+
+- If you think the seed nodes for the networks has changed since we downloaded them, just run the download script using `curl` on your system to refresh them from github
+  
+  `./download.sh`
 
 ## Credits
 
@@ -24,5 +39,5 @@ For port use the p2p port, which is 4701 for [Hydra mainnet](http://hydra.iop.gl
 
 ## License
 
-ARK Delegate: [MIT](LICENSE) © roks0n
-Hydra patches: [MIT](LICENSE) © Decentralized Society Foundation, Panama
+- ARK Delegate: [MIT](LICENSE) © roks0n
+- Hydra patches: [MIT](LICENSE) © Decentralized Society Foundation, Panama

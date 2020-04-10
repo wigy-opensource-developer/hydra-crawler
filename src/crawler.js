@@ -1,8 +1,10 @@
-const { map } = require('lodash')
+const { map, sample } = require('lodash')
 const Connections = require('./peer')
 
+const GET_PEERS_FAILED = -2
+const CONNECTION_FAILED = -1
 const NOT_VISITED = 0
-const VISITED = 1
+const GET_PEERS_SUCCESS = 1
 let NETWORK_P2P_PORT = null
 
 class Crawler {
@@ -10,7 +12,7 @@ class Crawler {
    * Initializes the internal request reactor.
    * @method constructor
    */
-  constructor (timeout = 2500, disconnect = true, sampleSize = 10) {
+  constructor (timeout = 2500, disconnect = true) {
     this.disconnect = disconnect
     this.request = {
       data: {},
@@ -18,8 +20,34 @@ class Crawler {
         'Content-Type': 'application/json'
       }
     }
-    this.sampleSize = sampleSize
     this.connections = new Connections(timeout)
+    this.nodes = {}
+    this.heights = []
+    this.traversalState = {}
+  }
+
+  add (peer) {
+    if (!NETWORK_P2P_PORT) {
+      NETWORK_P2P_PORT = peer.port
+    } else {
+      if (NETWORK_P2P_PORT !== peer.port) {
+        console.error(`${peer.ip} has p2p port at ${peer.port} instead of ${NETWORK_P2P_PORT}`)
+      }
+    }
+
+    if (!(peer.ip in this.nodes)) {
+      this.nodes[peer.ip] = peer
+    } else {
+      Object.assign(this.nodes[peer.ip], peer)
+    }
+
+    if (!(peer.ip in this.traversalState)) {
+      this.traversalState[peer.ip] = NOT_VISITED
+    }
+
+    if (!this.connections.get(peer.ip)) {
+      this.connections.add(peer.ip, peer.port)
+    }
   }
 
   /**
@@ -28,21 +56,16 @@ class Crawler {
    * @param  {object}  peer {ip: [address], port: [4001]}
    * @return {Promise}
    */
-  async run (peer) {
-    this.nodes = {}
-    this.heights = []
-    this.traversalState = {}
+  async run () {
     this.startTime = new Date()
-
-    NETWORK_P2P_PORT = peer.port
-
-    if (!this.connections.get(peer.ip)) {
-      this.connections.add(peer.ip, NETWORK_P2P_PORT)
-    }
 
     try {
       console.log('... discovering network peers')
-      await this.discoverPeers(peer)
+      while (true) {
+        const unvisitedIp = sample(Object.keys(this.traversalState).filter(ip => this.traversalState[ip] === NOT_VISITED))
+        if (!unvisitedIp) break
+        await this.discoverPeers(unvisitedIp)
+      }
       console.log('... scanning network')
       await this.scanNetwork()
       if (this.disconnect) {
@@ -51,58 +74,36 @@ class Crawler {
       }
     } catch (err) {
       console.error(err)
+    } finally {
+      this.endTime = new Date()
     }
-
-    return this
   }
 
-  async discoverPeers (currentNode) {
+  async discoverPeers (ip) {
     return new Promise((resolve, reject) => {
-      const connection = this.connections.get(currentNode.ip)
+      const connection = this.connections.get(ip)
       if (!connection) {
-        reject(new Error(`No connection exists for ${currentNode.ip}:${currentNode.port}`))
+        console.error(`No connection exists for ${ip}`)
+        this.traversalState[ip] = CONNECTION_FAILED
+        return resolve()
       }
       connection.emit(
         'p2p.peer.getPeers',
         this.request,
         (err, response) => {
           if (err) {
-            console.error(`Error when calling p2p.peer.getPeers on ${currentNode.ip}: ${err}`)
+            console.error(`Error when calling p2p.peer.getPeers on ${ip}: ${err}`)
+            this.traversalState[ip] = GET_PEERS_FAILED
             return resolve()
           }
 
-          if (currentNode.ip in this.traversalState) {
-            this.traversalState[currentNode.ip] = VISITED
-          }
+          this.traversalState[ip] = GET_PEERS_SUCCESS
 
           response.data.map((peer) => {
-            if (!(peer.ip in this.nodes)) {
-              this.nodes[peer.ip] = peer
-            }
-
-            if (!this.connections.get(peer.ip)) {
-              this.connections.add(peer.ip, NETWORK_P2P_PORT)
-            }
+            this.add({ port: NETWORK_P2P_PORT, ...peer })
           })
 
-          if (this.traversalState[currentNode.ip] === VISITED) {
-            return resolve()
-          }
-
-          // note: this is not very efficient on large arrays
-          const samplePeers = response.data
-            .filter(p => this.traversalState[p.ip] !== VISITED)
-            .filter(a => a.ip !== currentNode.ip)
-            .map(x => ({ x, r: Math.random() }))
-            .sort((a, b) => a.r - b.r)
-            .map(a => a.x)
-            .slice(0, this.sampleSize)
-          const discoverPeers = samplePeers
-            .map((peer) => {
-              this.traversalState[peer.ip] = NOT_VISITED
-              return this.discoverPeers(peer)
-            })
-          Promise.all(discoverPeers).then(resolve)
+          return resolve()
         }
       )
     })
@@ -128,13 +129,8 @@ class Crawler {
               id: response.data.state.header.id
             }
             this.heights.push(block)
-            if (peer.height !== block.height) {
-              console.log(peer.ip + ' heights: ' + peer.height + '<>' + block.height)
-            }
-            Object.assign(peer, response.data.config);
-            Object.assign(peer, block);
-            // peer.height = block.height
-            // peer.id = block.id
+            Object.assign(peer, response.data)
+            Object.assign(peer, block)
             return resolve()
           }
         )

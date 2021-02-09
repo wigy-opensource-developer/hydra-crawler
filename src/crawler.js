@@ -1,5 +1,6 @@
 const { map, sample } = require('lodash')
 const Connections = require('./peer')
+const XMLHttpRequest = require('xmlhttprequest').XMLHttpRequest
 
 const GET_PEERS_FAILED = -2
 const CONNECTION_FAILED = -1
@@ -7,6 +8,11 @@ const NOT_VISITED = 0
 const GET_PEERS_SUCCESS = 1
 let NETWORK_P2P_PORT = null
 
+function delay(milisec) { 
+  return new Promise(resolve => { 
+      setTimeout(() => { resolve() }, milisec); 
+  }) 
+}
 class Crawler {
   /**
    * Initializes the internal request reactor.
@@ -50,6 +56,8 @@ class Crawler {
     }
   }
 
+  
+
   /**
    * Runs a height check on the entire network connected to the initial peer.
    * @method run
@@ -58,7 +66,6 @@ class Crawler {
    */
   async run () {
     this.startTime = new Date()
-
     try {
       console.log('... discovering network peers')
       while (true) {
@@ -72,6 +79,7 @@ class Crawler {
         console.log('... disconnecting from all peers')
         this.connections.disconnectAll()
       }
+      await this.addLocationToNodes()
     } catch (err) {
       console.error(err)
     } finally {
@@ -138,6 +146,46 @@ class Crawler {
     })
 
     return Promise.all(promises)
+  }
+
+  async addLocationToNodes() {
+    for (const node of Object.values(this.nodes)) {
+      try{
+        const location = await this.fetchLocationFromIp(node.ip)
+        this.nodes[node.ip].location = location
+        await delay(200)
+      } catch (error) {
+        console.error(error)
+        await delay(20000)
+      }
+    }
+  }
+
+  async fetchLocationFromIp(ip) {
+    return new Promise((resolve,reject) => {
+      let request = new XMLHttpRequest()
+
+      request.open('GET', `https://ipinfo.io/${ip}/json`)
+      request.send()
+  
+      request.onreadystatechange = function() {
+        if (request.readyState != 4) {
+          return
+        }
+        
+        if (request.status == 200) {
+          const json = JSON.parse(request.responseText);
+          delete json.ip
+          delete json.anycast
+          delete json.readme
+          resolve(json)
+        } else if (request.status == 429) {
+          reject(new Error("Too many requests"))
+        } else {
+          reject(new Error(`Location API failed and returned status ${request.status}: ${request.responseText}`))
+        }
+      }
+    })
   }
 }
 

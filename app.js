@@ -7,10 +7,10 @@ const Crawler = require('./src/crawler')
 
 const report = (crawler) => {
   const blockStats = {}
+  const nodeStats = {}
   const versionStats = {}
 
   const nodes = Object.values(crawler.nodes)
-
   for (const node of nodes) {
     if (node.height === undefined || node.id === undefined) {
       continue
@@ -36,12 +36,36 @@ const report = (crawler) => {
         version: node.version
       }
     }
+
+    if (nodeStats[node.ip]) {
+      continue
+    } else {
+      nodeStats[node.ip] = { 
+        ip: node.ip,
+        location: node.location,
+        version: node.version,
+        height: node.height
+      }
+    }
   }
 
   const allDelays = nodes.filter(item => item.latency).map(item => item.latency)
   const averageDelay = (allDelays.reduce((a, b) => a + b, 0) / allDelays.length).toFixed(2)
   const maxDelay = Math.max(...allDelays)
   const minDelay = Math.min(...allDelays)
+
+  // Node stats;
+  console.log('Individual node stats');
+  for (const node of orderBy(Object.values(nodeStats),['ip'],['desc'])) {
+    console.log(`\nIP: ${node.ip}`)
+    console.log(`Version: ${node.version} at height: ${node.height}`)
+    if (node.location) {
+      console.log(`Location: ${node.location.city},${node.location.region},${node.location.country}`)
+      console.log(`Organization: ${node.location.org}`)
+    } else {
+      console.log('Could not fetch location data')
+    }
+  }
 
   console.log('===========================================')
   console.log(`All nodes: ${Object.keys(crawler.nodes).length}`)
@@ -89,7 +113,6 @@ const main = async () => {
     if ('list' in input) {
       input = input.list
     }
-
     for (const node of input) {
       crawler.add(node)
     }

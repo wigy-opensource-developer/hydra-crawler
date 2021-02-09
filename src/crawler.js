@@ -8,17 +8,17 @@ const NOT_VISITED = 0
 const GET_PEERS_SUCCESS = 1
 let NETWORK_P2P_PORT = null
 
-function delay(milisec) { 
-  return new Promise(resolve => { 
-      setTimeout(() => { resolve() }, milisec); 
-  }) 
+function delay(millisec) {
+  return new Promise(resolve => {
+    setTimeout(() => { resolve() }, millisec);
+  })
 }
 class Crawler {
   /**
    * Initializes the internal request reactor.
    * @method constructor
    */
-  constructor (timeout = 2500, disconnect = true) {
+  constructor(timeout = 2500, disconnect = true) {
     this.disconnect = disconnect
     this.request = {
       data: {},
@@ -32,7 +32,7 @@ class Crawler {
     this.traversalState = {}
   }
 
-  add (peer) {
+  add(peer) {
     if (!NETWORK_P2P_PORT) {
       NETWORK_P2P_PORT = peer.port
     } else {
@@ -56,7 +56,7 @@ class Crawler {
     }
   }
 
-  
+
 
   /**
    * Runs a height check on the entire network connected to the initial peer.
@@ -64,7 +64,7 @@ class Crawler {
    * @param  {object}  peer {ip: [address], port: [4001]}
    * @return {Promise}
    */
-  async run () {
+  async run() {
     this.startTime = new Date()
     try {
       console.log('... discovering network peers')
@@ -87,7 +87,7 @@ class Crawler {
     }
   }
 
-  async discoverPeers (ip) {
+  async discoverPeers(ip) {
     return new Promise((resolve, reject) => {
       const connection = this.connections.get(ip)
       if (!connection) {
@@ -117,7 +117,7 @@ class Crawler {
     })
   }
 
-  scanNetwork () {
+  scanNetwork() {
     const promises = map(this.nodes, (peer) => {
       return new Promise((resolve, reject) => {
         const connection = this.connections.get(peer.ip)
@@ -150,7 +150,7 @@ class Crawler {
 
   async addLocationToNodes() {
     for (const node of Object.values(this.nodes)) {
-      try{
+      try {
         const location = await this.fetchLocationFromIp(node.ip)
         this.nodes[node.ip].location = location
         await delay(200)
@@ -162,17 +162,17 @@ class Crawler {
   }
 
   async fetchLocationFromIp(ip) {
-    return new Promise((resolve,reject) => {
+    return new Promise((resolve, reject) => {
       let request = new XMLHttpRequest()
 
       request.open('GET', `https://ipinfo.io/${ip}/json`)
       request.send()
-  
-      request.onreadystatechange = function() {
+
+      request.onreadystatechange = function () {
         if (request.readyState != 4) {
           return
         }
-        
+
         if (request.status == 200) {
           const json = JSON.parse(request.responseText);
           delete json.ip

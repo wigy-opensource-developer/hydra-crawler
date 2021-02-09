@@ -28,12 +28,12 @@ const report = (crawler) => {
       blockStats[node.height].ids[node.id] = 1
     }
 
-    if (versionStats[node.version]) {
-      versionStats[node.version].count += 1
+    if (versionStats[node.config.version]) {
+      versionStats[node.config.version].count += 1
     } else {
-      versionStats[node.version] = {
+      versionStats[node.config.version] = {
         count: 1,
-        version: node.version
+        version: node.config.version
       }
     }
 
@@ -43,16 +43,11 @@ const report = (crawler) => {
       nodeStats[node.ip] = { 
         ip: node.ip,
         location: node.location,
-        version: node.version,
+        version: node.config.version,
         height: node.height
       }
     }
   }
-
-  const allDelays = nodes.filter(item => item.latency).map(item => item.latency)
-  const averageDelay = (allDelays.reduce((a, b) => a + b, 0) / allDelays.length).toFixed(2)
-  const maxDelay = Math.max(...allDelays)
-  const minDelay = Math.min(...allDelays)
 
   // Node stats;
   console.log('Individual node stats');
@@ -88,13 +83,6 @@ const report = (crawler) => {
   for (const stat of orderBy(Object.values(versionStats), ['version'], ['desc'])) {
     console.log(`  - ${stat.version} on ${stat.count} nodes`)
   }
-
-  // delay stats
-  console.log('')
-  console.log('Delay')
-  console.log(`  Avg: ${averageDelay}ms`)
-  console.log(`  Min: ${minDelay}ms`)
-  console.log(`  Max: ${maxDelay}ms`)
 
   console.log('------------------------------------------')
   console.log(`Finished scanning in ${new Date() - crawler.startTime}ms`)
